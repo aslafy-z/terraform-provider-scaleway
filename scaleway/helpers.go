@@ -93,7 +93,9 @@ func waitForServerState(scaleway *api.API, serverID, targetState string) error {
 		Pending: pending,
 		Target:  []string{targetState},
 		Refresh: func() (interface{}, string, error) {
+			mu.Lock()
 			s, err := scaleway.GetServer(serverID)
+			mu.Unlock()
 
 			if err == nil {
 				return 42, s.State, nil

@@ -130,6 +130,9 @@ func resourceScalewayServer() *schema.Resource {
 }
 
 func attachIP(scaleway *api.API, serverID, IPAddress string) error {
+	mu.Lock()
+	defer mu.Unlock()
+
 	ips, err := scaleway.GetIPS()
 	if err != nil {
 		return err
@@ -145,9 +148,6 @@ func attachIP(scaleway *api.API, serverID, IPAddress string) error {
 
 func resourceScalewayServerCreate(d *schema.ResourceData, m interface{}) error {
 	scaleway := m.(*Client).scaleway
-
-	mu.Lock()
-	defer mu.Unlock()
 
 	image := d.Get("image").(string)
 	var server = api.ServerDefinition{
@@ -174,11 +174,13 @@ func resourceScalewayServerCreate(d *schema.ResourceData, m interface{}) error {
 			sizeInGB := uint64(volume["size_in_gb"].(int))
 
 			if sizeInGB > 0 {
+				mu.Lock()
 				volumeID, err := scaleway.PostVolume(api.VolumeDefinition{
 					Size: sizeInGB * gb,
 					Type: volume["type"].(string),
 					Name: fmt.Sprintf("%s-%d", server.Name, sizeInGB),
 				})
+				mu.Unlock()
 				if err != nil {
 					return err
 				}
@@ -196,14 +198,18 @@ func resourceScalewayServerCreate(d *schema.ResourceData, m interface{}) error {
 		}
 	}
 
+	mu.Lock()
 	id, err := scaleway.PostServer(server)
+	mu.Unlock()
 	if err != nil {
 		return err
 	}
 
 	d.SetId(id)
 	if d.Get("state").(string) != "stopped" {
+		mu.Lock()
 		err = scaleway.PostServerAction(id, "poweron")
+		mu.Unlock()
 		if err != nil {
 			return err
 		}
@@ -226,6 +232,10 @@ func resourceScalewayServerCreate(d *schema.ResourceData, m interface{}) error {
 
 func resourceScalewayServerRead(d *schema.ResourceData, m interface{}) error {
 	scaleway := m.(*Client).scaleway
+
+	mu.Lock()
+	defer mu.Unlock()
+
 	server, err := scaleway.GetServer(d.Id())
 
 	if err != nil {
